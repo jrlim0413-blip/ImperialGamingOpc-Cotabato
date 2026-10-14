@@ -2115,7 +2115,7 @@ function App() {
   const isToday = selectedDate === getCurrentDate()
   const isYesterday = selectedDate === getYesterdayDate()
 
-  const fetchProxiedReport = async (type, params, fallbackUrl, headers) => {
+  const fetchProxiedReport = async (type, params) => {
     if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
       try {
         const pUrl = new URL('/api/proxy', window.location.origin)
@@ -2127,7 +2127,38 @@ function App() {
         if (pRes.ok) {
           return await pRes.json()
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Proxy report error, falling back:', e)
+      }
+    }
+    const isDummyToken = (t) => !t || t.startsWith('rbac-token') || t.startsWith('local-auth')
+    const effectiveToken = authorization || (!isDummyToken(currentUser?.token) ? currentUser?.token : '')
+    const headers = effectiveToken
+      ? { Authorization: `Bearer ${effectiveToken}`, Accept: 'application/json' }
+      : { Accept: 'application/json' }
+
+    let fallbackUrl = ''
+    if (type === 'overall') {
+      const u = new URL(overallApiUrl)
+      u.searchParams.set('from', params.from)
+      u.searchParams.set('to', params.to)
+      fallbackUrl = u.toString()
+    } else if (type === 'draw') {
+      const u = new URL(drawApiUrl)
+      u.searchParams.set('drawId', params.drawId)
+      u.searchParams.set('from', params.from)
+      u.searchParams.set('to', params.to)
+      fallbackUrl = u.toString()
+    } else if (type === 'supervisor') {
+      const u = new URL(supervisorApiUrl)
+      u.searchParams.set('from', params.from)
+      u.searchParams.set('to', params.to)
+      fallbackUrl = u.toString()
+    } else if (type === 'teller') {
+      const u = new URL(tellerApiUrl)
+      u.searchParams.set('from', params.from)
+      u.searchParams.set('to', params.to)
+      fallbackUrl = u.toString()
     }
     const fRes = await fetch(fallbackUrl, { headers })
     if (!fRes.ok) throw new Error(`Request failed (${fRes.status})`)
@@ -2140,25 +2171,14 @@ function App() {
     setError('')
 
     try {
-      const isDummyToken = (t) => !t || t.startsWith('rbac-token') || t.startsWith('local-auth')
-      const effectiveToken = authorization || (!isDummyToken(currentUser?.token) ? currentUser?.token : '')
-      const headers = effectiveToken
-        ? { Authorization: `Bearer ${effectiveToken}`, Accept: 'application/json' }
-        : { Accept: 'application/json' }
-
       let overallData = []
       let dynamicDrawIds = []
 
       if (overallApiUrl) {
         try {
-          const overallUrl = new URL(overallApiUrl)
-          overallUrl.searchParams.set('from', queryDate)
-          overallUrl.searchParams.set('to', getNextDate(queryDate))
-          const overallRes = await fetch(overallUrl, { headers })
-          if (overallRes.ok) {
-            overallData = normalizeRows(await overallRes.json())
-            dynamicDrawIds = overallData.map((d) => d?.id).filter(Boolean)
-          }
+          const overallDataRaw = await fetchProxiedReport('overall', { from: queryDate, to: getNextDate(queryDate) })
+          overallData = normalizeRows(overallDataRaw)
+          dynamicDrawIds = overallData.map((d) => d?.id).filter(Boolean)
         } catch (fetchDrawsError) {
           console.warn('Unable to fetch dynamic draw IDs from overallApiUrl:', fetchDrawsError)
         }
@@ -2175,22 +2195,13 @@ function App() {
       if (drawApiUrl && targetDrawIds.length > 0) {
         const [responses, supervisorResponse] = await Promise.all([
           Promise.all(targetDrawIds.map(async (drawId) => {
-            const requestUrl = new URL(drawApiUrl)
-            requestUrl.searchParams.set('drawId', drawId)
-            requestUrl.searchParams.set('from', queryDate)
-            requestUrl.searchParams.set('to', getNextDate(queryDate))
-            const response = await fetch(requestUrl, { headers })
-            if (!response.ok) throw new Error(`Unable to load draw ${drawId} (${response.status})`)
-            return normalizeRows(await response.json())
+            const drawData = await fetchProxiedReport('draw', { drawId, from: queryDate, to: getNextDate(queryDate) })
+            return normalizeRows(drawData)
           })),
           supervisorApiUrl
             ? (async () => {
-                const requestUrl = new URL(supervisorApiUrl)
-                requestUrl.searchParams.set('from', queryDate)
-                requestUrl.searchParams.set('to', getNextDate(queryDate))
-                const response = await fetch(requestUrl, { headers })
-                if (!response.ok) throw new Error(`Unable to load supervisor names (${response.status})`)
-                return normalizeRows(await response.json())
+                const spvrData = await fetchProxiedReport('supervisor', { from: queryDate, to: getNextDate(queryDate) })
+                return normalizeRows(spvrData)
               })()
             : Promise.resolve([])
         ])
@@ -2203,12 +2214,8 @@ function App() {
       } else {
         const sourceApiUrl = tellerApiUrl
         if (sourceApiUrl) {
-          const requestUrl = new URL(sourceApiUrl)
-          requestUrl.searchParams.set('from', queryDate)
-          requestUrl.searchParams.set('to', getNextDate(queryDate))
-          const response = await fetch(requestUrl, { headers })
-          if (!response.ok) throw new Error(`Unable to load report (${response.status})`)
-          reportRows = normalizeRows(await response.json())
+          const tellerData = await fetchProxiedReport('teller', { from: queryDate, to: getNextDate(queryDate) })
+          reportRows = normalizeRows(tellerData)
         }
         setSupervisorRows([])
       }

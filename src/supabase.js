@@ -131,6 +131,17 @@ export const MATRIX_REALTIME_CHANNEL = 'rbac-matrix-realtime'
 let realtimeChannelInstance = null
 
 export async function getSupabaseMatrixConfig() {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'get_matrix')
+      const res = await fetch(u)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && json.config) return { success: true, config: json.config }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
     const { data: tableData, error: tableErr } = await supabase
@@ -165,6 +176,27 @@ export async function getSupabaseMatrixConfig() {
 }
 
 export async function saveSupabaseMatrixConfig(config) {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'save_matrix')
+      const pRes = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      if (pRes.ok) {
+        if (realtimeChannelInstance) {
+          realtimeChannelInstance.send({
+            type: 'broadcast',
+            event: 'matrix_updated',
+            payload: { timestamp: Date.now() },
+          }).catch(() => {})
+        }
+        return { success: true, source: 'proxy' }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
     const payloadWithTimestamp = {
@@ -267,6 +299,17 @@ export const COMMISSIONS_CONFIG_ID = 'commissions_config'
 export const COMMISSIONS_CONFIG_SYS_ID = '__sys_commissions_config__'
 
 export async function getSupabaseCommissionSettings() {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'get_commissions')
+      const res = await fetch(u)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && json.settings) return { success: true, settings: json.settings }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
     const { data: tableData, error: tableErr } = await supabase
@@ -301,6 +344,27 @@ export async function getSupabaseCommissionSettings() {
 }
 
 export async function saveSupabaseCommissionSettings(settings) {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'save_commissions')
+      const pRes = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      })
+      if (pRes.ok) {
+        if (realtimeChannelInstance) {
+          realtimeChannelInstance.send({
+            type: 'broadcast',
+            event: 'commissions_updated',
+            payload: { timestamp: Date.now() },
+          }).catch(() => {})
+        }
+        return { success: true, source: 'proxy' }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
     const payload = {
@@ -481,6 +545,17 @@ export function subscribeToMatrixRealtime(onUpdate) {
 }
 
 export async function getSupabaseRbacUsers() {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'get_users')
+      const res = await fetch(u)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && Array.isArray(json.data)) return { success: true, data: json.data }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, data: [] }
   try {
     const { data, error } = await supabase
@@ -526,6 +601,21 @@ export async function getSupabaseRbacUsers() {
 }
 
 export async function saveRbacUserToSupabase(user) {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'save_user')
+      const pRes = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      })
+      if (pRes.ok) {
+        const json = await pRes.json()
+        return { success: true, data: json.data }
+      }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase is not configured' }
   try {
     const payload = {
@@ -556,6 +646,16 @@ export async function saveRbacUserToSupabase(user) {
 }
 
 export async function deleteRbacUserFromSupabase(id, username) {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'delete_user')
+      if (id) u.searchParams.set('id', id)
+      if (username) u.searchParams.set('username', username)
+      const pRes = await fetch(u)
+      if (pRes.ok) return { success: true }
+    } catch (e) {}
+  }
   if (!supabase) return { success: false, error: 'Supabase is not configured' }
   try {
     const cleanUser = username ? String(username).trim().toLowerCase() : ''
@@ -895,6 +995,19 @@ export async function getCloudSession() {
 }
 
 export async function updateCloudSession(token, updatedUser) {
+  if (!token) return
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'create_session')
+      await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updatedUser, token }),
+      })
+      return
+    } catch (e) {}
+  }
   if (!token || !supabase) return
   try {
     const { data } = await supabase

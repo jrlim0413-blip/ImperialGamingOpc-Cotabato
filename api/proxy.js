@@ -18,9 +18,8 @@ export default async function handler(req, res) {
     'Prefer': 'return=representation',
   };
 
-  const { action, type, from, to, drawId, id, token } = req.query || {};
+  const { action, type, from, to, drawId, id, token, username } = req.query || {};
 
-  // 1. Unified Cloud Boot / Database Proxy
   if (action === 'boot') {
     try {
       const [matrixRes, commRes, usersRes] = await Promise.all([
@@ -48,6 +47,36 @@ export default async function handler(req, res) {
         users: Array.isArray(usersData) ? usersData : [],
         sessionUser,
       });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  if (action === 'get_matrix') {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rbac_matrix_config?id=eq.matrix_config&select=config`, { headers: supaHeaders });
+      const data = await r.json();
+      return res.status(200).json({ success: true, config: data?.[0]?.config || null });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  if (action === 'get_commissions') {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rbac_matrix_config?id=eq.commissions_config&select=config`, { headers: supaHeaders });
+      const data = await r.json();
+      return res.status(200).json({ success: true, settings: data?.[0]?.config || null });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  if (action === 'get_users') {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rbac_users?select=*&order=created_at.desc`, { headers: supaHeaders });
+      const data = await r.json();
+      return res.status(200).json({ success: true, data: Array.isArray(data) ? data : [] });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -82,6 +111,43 @@ export default async function handler(req, res) {
           config: body,
           updated_at: new Date().toISOString(),
         }),
+      });
+      return res.status(r.status).json({ success: r.ok });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  if (action === 'save_user') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rbac_users`, {
+        method: 'POST',
+        headers: { ...supaHeaders, 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      return res.status(r.status).json({ success: r.ok, data });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  if (action === 'delete_user') {
+    try {
+      const targetId = id || req.query.id;
+      const targetUsername = username || req.query.username;
+      let queryParam = '';
+      if (targetId && targetUsername) {
+        queryParam = `or=(id.eq.${targetId},username.eq.${targetUsername})`;
+      } else if (targetId) {
+        queryParam = `id=eq.${targetId}`;
+      } else if (targetUsername) {
+        queryParam = `username=eq.${targetUsername}`;
+      }
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rbac_users?${queryParam}`, {
+        method: 'DELETE',
+        headers: supaHeaders,
       });
       return res.status(r.status).json({ success: r.ok });
     } catch (err) {
@@ -137,14 +203,28 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. STL Reports Proxy
+  if (action === 'login') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const r = await fetch('https://stl-ldn-api.com/api/accountant/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      return res.status(r.status).json(data);
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   let targetUrl = '';
   if (type === 'overall') {
     targetUrl = `https://stl-cotabato-api.com/api/accountant/OverAllReports?id=${id || 2}&from=${from}&to=${to}`;
   } else if (type === 'draw') {
     targetUrl = `https://stl-cotabato-api.com/api/accountant/GrossPerDraw?id=${id || 2}&drawId=${drawId}&from=${from}&to=${to}`;
   } else if (type === 'supervisor') {
-    targetUrl = `https://stl-cotabato-api.com/api/accountant/AccountantSpvrWithGrossPerDraw?id=${id || 2}&from=${from}&drawId=${drawId || 4361}`;
+    targetUrl = `https://stl-cotabato-api.com/api/accountant/AccountantSpvrWithGrossPerDraw?id=${id || 2}&from=${from}&drawId=${drawId || 4361}&to=${to}`;
   } else if (type === 'teller') {
     targetUrl = `https://stl-cotabato-api.com/api/accountant/TellerGrossPerDay?id=${id || 2}&from=${from}&to=${to}`;
   }
