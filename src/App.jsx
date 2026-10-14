@@ -12,6 +12,8 @@ import './CustomPrintBrowserModal.css'
 import { loadCommissionSettings, getAgentCommissionRate } from './commissions'
 import {
   signOutFromSupabase,
+  bootFromCloud,
+  getSessionTokenFromUrl,
   getCloudSession,
   createCloudSession,
   updateCloudSession,
@@ -1959,6 +1961,17 @@ function App() {
   const [commissionSettings, setCommissionSettings] = useState(() => loadCommissionSettings())
 
   useEffect(() => {
+    const sessionToken = getSessionTokenFromUrl()
+    bootFromCloud(sessionToken).then((data) => {
+      if (data?.sessionUser) {
+        setCurrentUser(data.sessionUser)
+      } else if (sessionToken) {
+        getCloudSession().then((u) => { if (u) setCurrentUser(u) }).catch(() => {})
+      }
+      setRbacRoles(getRbacRoles())
+      setCommissionSettings(loadCommissionSettings())
+    }).catch(() => {})
+
     const handleCommissionChange = (e) => {
       if (e?.detail) setCommissionSettings(e.detail)
       else setCommissionSettings(loadCommissionSettings())

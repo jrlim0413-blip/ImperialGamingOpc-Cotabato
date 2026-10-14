@@ -41,9 +41,6 @@
 
         if (isOpen) {
           if (overlay) overlay.style.display = 'flex';
-          try {
-            (function () { Function("debugger")(); })();
-          } catch (e) { }
         } else {
           if (overlay) overlay.style.display = 'none';
         }

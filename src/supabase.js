@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { setInMemoryRoles, setInMemoryUserPerms } from './rbac.js'
+import { setInMemoryRoles, setInMemoryUserPerms, setInMemoryUsers } from './rbac.js'
 import { setInMemoryCommissionSettings } from './commissions.js'
 
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}
@@ -832,6 +832,19 @@ export async function createCloudSession(user) {
 
   setSessionTokenInUrl(token)
 
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'create_session')
+      const pRes = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionUser),
+      })
+      if (pRes.ok) return sessionUser
+    } catch {}
+  }
+
   if (supabase) {
     try {
       const { data } = await supabase
@@ -914,6 +927,16 @@ export async function revokeCloudSession(token) {
   const targetToken = token || getSessionTokenFromUrl()
   setSessionTokenInUrl(null)
 
+  if (targetToken && typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'revoke_session')
+      u.searchParams.set('token', targetToken)
+      await fetch(u, { method: 'POST' })
+      return
+    } catch {}
+  }
+
   if (targetToken && supabase) {
     try {
       const { data } = await supabase
@@ -935,5 +958,45 @@ export async function revokeCloudSession(token) {
           })
       }
     } catch {}
+  }
+}
+
+
+export async function bootFromCloud(sessionToken) {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    try {
+      const u = new URL('/api/proxy', window.location.origin)
+      u.searchParams.set('action', 'boot')
+      if (sessionToken) u.searchParams.set('token', sessionToken)
+      const res = await fetch(u)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          if (data.matrix) {
+            if (data.matrix.roles) setInMemoryRoles(data.matrix.roles)
+            if (data.matrix.userPerms) setInMemoryUserPerms(data.matrix.userPerms)
+          }
+          if (data.commissions) setInMemoryCommissionSettings(data.commissions)
+          if (Array.isArray(data.users) && data.users.length > 0) setInMemoryUsers(data.users)
+
+          window.dispatchEvent(new CustomEvent('luckybet_rbac_change', { detail: { source: 'boot_proxy' } }))
+          window.dispatchEvent(new CustomEvent('luckybet_commissions_updated', { detail: data.commissions, source: 'boot_proxy' }))
+          return data
+        }
+      }
+    } catch (e) {
+      console.warn('Proxy boot error, falling back:', e)
+    }
+  }
+
+  const [matrixRes, commRes, usersRes] = await Promise.all([
+    syncMatrixPermissionsFromSupabase().catch(() => null),
+    syncCommissionSettingsFromSupabase().catch(() => null),
+    getSupabaseRbacUsers().catch(() => null),
+  ])
+  return {
+    matrix: matrixRes?.config,
+    commissions: commRes?.settings,
+    users: usersRes?.data || [],
   }
 }
