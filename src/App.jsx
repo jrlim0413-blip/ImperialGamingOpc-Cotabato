@@ -2102,6 +2102,25 @@ function App() {
   const isToday = selectedDate === getCurrentDate()
   const isYesterday = selectedDate === getYesterdayDate()
 
+  const fetchProxiedReport = async (type, params, fallbackUrl, headers) => {
+    if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+      try {
+        const pUrl = new URL('/api/proxy', window.location.origin)
+        pUrl.searchParams.set('type', type)
+        Object.entries(params).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) pUrl.searchParams.set(k, v)
+        })
+        const pRes = await fetch(pUrl)
+        if (pRes.ok) {
+          return await pRes.json()
+        }
+      } catch {}
+    }
+    const fRes = await fetch(fallbackUrl, { headers })
+    if (!fRes.ok) throw new Error(`Request failed (${fRes.status})`)
+    return await fRes.json()
+  }
+
   const loadReport = useCallback(async (targetDate = selectedDate) => {
     const queryDate = targetDate || selectedDate || getCurrentDate()
     setLoading(true)

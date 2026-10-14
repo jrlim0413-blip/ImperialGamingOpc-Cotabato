@@ -10,6 +10,30 @@
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
   <title>Imperial Gaming | STL Reports</title>
+  <script>
+    (function () {
+      document.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        return false;
+      }, true);
+
+      document.addEventListener('keydown', function (e) {
+        var key = e.key ? e.key.toLowerCase() : '';
+        var isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        var isShiftOrAlt = e.shiftKey || e.altKey;
+
+        if (
+          key === 'f12' ||
+          (isCtrlOrCmd && isShiftOrAlt && (key === 'i' || key === 'j' || key === 'c')) ||
+          (isCtrlOrCmd && key === 'u')
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }, true);
+    })();
+  </script>
 </head>
 
 <body>

@@ -783,19 +783,42 @@ export const ACTIVE_SESSIONS_CONFIG_ID = 'active_sessions'
 
 export function getSessionTokenFromUrl() {
   if (typeof window === 'undefined') return null
+  try {
+    if (window.name && window.name.startsWith('ses_')) {
+      return window.name
+    }
+    if (window.name) {
+      try {
+        const parsed = JSON.parse(window.name)
+        if (parsed?.token) return parsed.token
+      } catch {}
+    }
+  } catch {}
+
   const hash = window.location.hash || ''
   const match = hash.match(/session=([^&]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+  if (match) {
+    const token = decodeURIComponent(match[1])
+    try { window.name = token } catch {}
+    try {
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+    } catch {}
+    return token
+  }
+
+  return null
 }
 
 export function setSessionTokenInUrl(token) {
   if (typeof window === 'undefined') return
-  if (token) {
-    window.location.hash = `session=${encodeURIComponent(token)}`
-  } else {
-    if (window.location.hash.includes('session=')) {
+  try {
+    window.name = token || ''
+  } catch {}
+
+  if (window.location.hash.includes('session=')) {
+    try {
       history.replaceState(null, '', window.location.pathname + window.location.search)
-    }
+    } catch {}
   }
 }
 
