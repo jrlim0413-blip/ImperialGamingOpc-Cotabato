@@ -10,7 +10,6 @@ import {
 } from './supabase'
 import './LoginPage.css'
 
-
 function SvgIcon({ name, size = 16, className = '' }) {
   const icons = {
     user: (
@@ -143,10 +142,8 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
   const [errorMsg, setErrorMsg] = useState('')
   const [showForgotModal, setShowForgotModal] = useState(false)
 
-  // Curated Background Color Theme Switcher: 'obsidian' | 'royal' | 'aurora' | 'executive'
   const [colorTheme, setColorTheme] = useState('obsidian')
 
-  // Interactive Carousel State
   const [activeSlide, setActiveSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   const autoPlayRef = useRef(null)
@@ -181,7 +178,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
     },
   ]
 
-  // Auto-play Carousel with pause on hover
   useEffect(() => {
     if (isPaused || loginSuccessState) return
     autoPlayRef.current = setInterval(() => {
@@ -190,7 +186,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
     return () => clearInterval(autoPlayRef.current)
   }, [isPaused, loginSuccessState, slides.length])
 
-  // Pre-sync cloud matrix permissions on login screen load
   useEffect(() => {
     if (isSupabaseConfigured) {
       syncMatrixPermissionsFromSupabase().catch(() => {})
@@ -204,7 +199,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
   const handlePrevSlide = () => {
     setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length)
   }
-
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -224,12 +218,10 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
     const configuredToken = import.meta.env.VITE_AUTHORIZATION
 
     try {
-      // 1. Primary Authentication: Dedicated Supabase 'rbac_users' Table
       if (isSupabaseConfigured) {
         try {
           const tableResult = await verifyCredentialsInSupabaseTable(cleanUsername, cleanPassword)
           if (tableResult.success && tableResult.account) {
-            // First sync latest matrix permissions from Supabase to ensure non-admin tabs are available
             await syncMatrixPermissionsFromSupabase().catch(() => {})
             const acc = tableResult.account
             const isAdmin = acc.role === 'admin' || cleanUsername.toLowerCase().includes('admin')
@@ -265,7 +257,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
         }
       }
 
-      // 2. Check if username was permanently deleted
       const deletedUsernames = getDeletedUsernames()
       if (deletedUsernames.includes(cleanUsername.toLowerCase())) {
         setErrorMsg(`Access Denied: Account "${cleanUsername}" has been removed from authorized credentials.`)
@@ -273,7 +264,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
         return
       }
 
-      // 3. Secondary Authentication: RBAC Persistent Directory (Strict Password Matching)
       if (!loginSuccess) {
         const rbacMatch = verifyUserCredentials(cleanUsername, cleanPassword)
         if (rbacMatch?.deactivated) {
@@ -292,7 +282,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
         }
       }
 
-      // 3. Fallback: Optional remote backend accounting API (if deployed)
       if (!loginSuccess) {
         try {
           const loginUrl = new URL('https://stl-ldn-api.com/api/accountant/login')
@@ -325,11 +314,9 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
             }
           }
         } catch (apiErr) {
-          // Ignore
         }
       }
 
-      // STRICT: Kung wala sa RBAC directory o table, hindi makakapag-login!
       if (!loginSuccess) {
         setErrorMsg('Access Denied: Account not found or incorrect password. Only accounts configured in RBAC can log in.')
       }
@@ -370,21 +357,16 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
       }`}
     >
       <div className="stl-login-container">
-        {/* ================================================================= */}
-        {/* LEFT WORKSPACE HERO PANEL & INTERACTIVE SHOWCASE CAROUSEL         */}
-        {/* ================================================================= */}
         <section
           className="stl-hero-panel"
           aria-label="STL LDN Interactive Showcase"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
         >
-          {/* Dynamic Ambient Background Lights */}
           <div className="stl-hero-glow-orb-top" aria-hidden="true" />
           <div className="stl-hero-glow-orb-mid" aria-hidden="true" />
           <div className="stl-hero-ambient-grid" aria-hidden="true" />
 
-          {/* Top Left STL Background Watermark Emblem (Half-peeking out of the corner) */}
           <div className="stl-corner-stl-bg-emblem" aria-hidden="true">
             <div className="stl-corner-glow-orb" />
             <div className="stl-corner-ring" />
@@ -395,10 +377,8 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
             />
           </div>
 
-          {/* Top Header with Color Palette Switcher */}
           <header className="stl-hero-header">
             <div className="stl-header-right-tools">
-              {/* Interactive Live Theme Switcher */}
               <div className="stl-theme-switcher-bar" title="Change Background Atmosphere">
                 <span className="stl-theme-label">
                   <SvgIcon name="palette" size={13} />
@@ -446,7 +426,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
             </div>
           </header>
 
-          {/* Interactive Showcase Carousel Body */}
           <div className="stl-carousel-viewport">
             <div className="stl-carousel-track">
               {slides.map((slide, idx) => {
@@ -483,7 +462,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
                           </>
                         )}
                       </h1>
-                      {/* Brand Concept Accent Bars (Gold & Sapphire Blue) */}
                       <div className="stl-hero-accent-bars" aria-hidden="true">
                         <span className="stl-accent-bar bar-gold" />
                         <span className="stl-accent-bar bar-blue" />
@@ -491,7 +469,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
                       <p className="stl-hero-subtitle">{slide.subtitle}</p>
                     </div>
 
-                    {/* Interactive Slide Centerpiece Card */}
                     <div className="stl-emblem-card-wrapper">
                       {slide.type === 'brand' && (
                         <div className="stl-emblem-glass-card brand-showcase-card">
@@ -624,7 +601,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               })}
             </div>
 
-            {/* Carousel Controls: Navigation Arrows & Indicator Pills */}
             <div className="stl-carousel-controls-bar">
               <div className="stl-carousel-nav-btns">
                 <button
@@ -668,9 +644,7 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
             </div>
           </div>
 
-          {/* Bottom Features Row: High-Tech Telemetry Bento Deck */}
           <div className="stl-hero-features-row">
-            {/* Bento Card 1: Live Audit Engine */}
             <div className="stl-telemetry-bento-card bento-card-1">
               <div className="bento-ambient-glow glow-cyan" />
               <div className="bento-top-badge-row">
@@ -697,7 +671,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </div>
             </div>
 
-            {/* Bento Card 2: Report Reliability & Integrity */}
             <div className="stl-telemetry-bento-card bento-card-2">
               <div className="bento-ambient-glow glow-amber" />
               <div className="bento-top-badge-row">
@@ -719,7 +692,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </div>
             </div>
 
-            {/* Bento Card 3: 3-Rotation Draw Time Matrix */}
             <div className="stl-telemetry-bento-card bento-card-3">
               <div className="bento-ambient-glow glow-blue" />
               <div className="bento-top-badge-row">
@@ -750,9 +722,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
             </div>
           </div>
 
-
-
-          {/* Bottom Right PCSO Background Watermark Emblem (Half-peeking out of the corner) */}
           <div className="stl-corner-pcso-bg-emblem" aria-hidden="true">
             <div className="pcso-corner-glow-orb" />
             <div className="pcso-corner-ring" />
@@ -764,15 +733,10 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
           </div>
         </section>
 
-        {/* ================================================================= */}
-        {/* RIGHT AUTHENTICATION GATEWAY PANEL                                */}
-        {/* ================================================================= */}
         <section className="stl-auth-panel" aria-label="Staff Login Portal">
           <div className="stl-auth-card">
-            {/* Top Glowing Laser Rim Beam */}
             <div className="stl-auth-card-top-beam" aria-hidden="true" />
 
-            {/* Top Circular Brand Container */}
             <div className="stl-auth-card-emblem-wrap">
               <div className="stl-auth-circle-container">
                 <div className="stl-circle-glow-orb" aria-hidden="true" />
@@ -785,7 +749,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </div>
             </div>
 
-            {/* Card Header */}
             <div className="stl-card-header">
 
               <div className="stl-card-titles">
@@ -803,9 +766,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </div>
             </div>
 
-
-
-            {/* Error Banner */}
             {errorMsg && (
               <div className="stl-auth-error-banner" role="alert">
                 <SvgIcon name="alertCircle" size={15} />
@@ -813,9 +773,7 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </div>
             )}
 
-            {/* Login Form */}
             <form className="stl-login-form" onSubmit={handleSubmit} noValidate>
-              {/* Username Input */}
               <div className="stl-form-group">
                 <label className="stl-form-label" htmlFor="stl-username-input">
                   Username, Email or Access ID
@@ -838,7 +796,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
                 </div>
               </div>
 
-              {/* Password Input */}
               <div className="stl-form-group">
                 <label className="stl-form-label" htmlFor="stl-password-input">
                   Password
@@ -870,7 +827,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password Row */}
               <div className="stl-form-options-row">
                 <label className="stl-checkbox-wrap">
                   <input
@@ -891,7 +847,6 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
                 </button>
               </div>
 
-              {/* Submit Button */}
               <button
                 type="submit"
                 className={`stl-submit-btn ${loginSuccessState ? 'btn-success-state' : ''}`}
@@ -917,12 +872,10 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
               </button>
             </form>
 
-
           </div>
         </section>
       </div>
 
-      {/* Forgot Password Modal Dialog */}
       {showForgotModal && (
         <div
           className="stl-modal-overlay"

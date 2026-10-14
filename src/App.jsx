@@ -508,8 +508,6 @@ function DrawGrossSummary({ supervisorReports }) {
   )
 }
 
-
-
 function MatrixTable({ group, showOverall = false }) {
   const supervisorTotalCommission = group.totalSalary !== undefined
     ? group.totalSalary
@@ -684,19 +682,15 @@ function calculateMetricsTotals(list = []) {
   )
 }
 
-// Paper budgets at 96dpi (px), for auto-fit calculations
 const PAPER_BUDGETS = {
-  longBond: { w: 756, h: 1188 }, // 8.5in × 13in @ 96dpi minus 4mm margins
-  a4:       { w: 756, h: 1026 }, // 8.27in × 11.69in @ 96dpi minus 4mm margins
+  longBond: { w: 756, h: 1188 },
+  a4:       { w: 756, h: 1026 },
 }
 
 function calculateAutoFitScale(agentCount, paperType = 'a4') {
-  // Fallback estimate used only before DOM measurement is available
   const budget = PAPER_BUDGETS[paperType] || PAPER_BUDGETS.a4
-  // Fixed chrome: header ~80px, meta ~22px, th ~24px, 2 section headers ~40px,
-  // 2 subtotal rows ~36px, grand total ~28px, spacers ~16px, draw deficits ~200px, sigs ~80px, footer ~20px
   const fixedPx = 546
-  const rowPx = 17 // compact row height
+  const rowPx = 17
   const estimatedHeight = fixedPx + agentCount * rowPx
   if (estimatedHeight <= budget.h) return 100
   const exact = Math.floor((budget.h / estimatedHeight) * 100)
@@ -724,7 +718,6 @@ function SupervisorStatementTable({
     netSales: positiveTotals.netSales + negativeTotals.netSales,
   }
 
-  // ─── Real DOM auto-fit ────────────────────────────────────────────────────
   const sheetRef = useRef(null)
   const wrapRef  = useRef(null)
   const [computedScale, setComputedScale] = useState(fitOnePage ? (fontScale || 100) : 100)
@@ -744,14 +737,12 @@ function SupervisorStatementTable({
       const contentW = sheetRef.current?.scrollWidth  || 0
       const wrapW    = wrapRef.current?.clientWidth   || 800
 
-      // Determine available print height from @page or use A4 as default
-      // A4 = 297mm - 8mm margins ≈ 1026px @ 96dpi
       const availH = PAPER_BUDGETS.a4.h
       const availW = wrapW
 
       const scaleH = availH / contentH
       const scaleW = availW / contentW
-      const scale  = Math.min(scaleH, scaleW, 1) // never upscale past 100%
+      const scale  = Math.min(scaleH, scaleW, 1)
 
       const pct = Math.max(55, Math.floor(scale * 100))
       setComputedScale(pct)
@@ -765,18 +756,14 @@ function SupervisorStatementTable({
       cancelAnimationFrame(raf)
       resizeObserver.disconnect()
     }
-  // Re-run when agent list changes or group changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitOnePage, group?.agents?.length, group?.supervisor])
 
-  // Apply computed scale via CSS transform (more reliable than zoom across browsers/print)
   useLayoutEffect(() => {
     if (!fitOnePage || !sheetRef.current) return
     if (computedScale < 100) {
       const s = (computedScale / 100).toFixed(4)
       sheetRef.current.style.transformOrigin = 'top left'
       sheetRef.current.style.transform = `scale(${s})`
-      // Expand wrapper to compensate so siblings aren't pushed
       sheetRef.current.style.width = `${(100 / (computedScale / 100)).toFixed(2)}%`
     } else {
       sheetRef.current.style.transform = ''
@@ -792,7 +779,6 @@ function SupervisorStatementTable({
       className={`statement-sheet ${isModal ? 'statement-sheet-modal' : 'statement-sheet-inline'} ${fitOnePage ? 'a4-single-page-fit' : ''}`}
       style={{ display: 'block', boxSizing: 'border-box' }}
     >
-      {/* ── FULL-WIDTH HEADER ─────────────────────────────────────── */}
       <div className="statement-header-block">
         <h3 className="statement-company-title">IMPERIAL GAMING OPC</h3>
         <h4 className="statement-report-title">CONDENSED SUPERVISOR AGENT REMITTANCE SUMMARY</h4>
@@ -808,10 +794,8 @@ function SupervisorStatementTable({
         </div>
       </div>
 
-      {/* ── 2-COLUMN BODY: LEFT = Balance Table | RIGHT = Draw Deficits ── */}
       <div className="statement-two-col-body">
 
-        {/* LEFT COLUMN – Official Balance Table */}
         <div className="statement-left-col">
           <div className="statement-col-label">OFFICIAL REMITTANCE STATEMENT</div>
           <div className="statement-table-container">
@@ -1014,7 +998,6 @@ function SupervisorStatementTable({
           </div>
         </div>
 
-        {/* RIGHT COLUMN – Draw Deficit Breakdown */}
         <div className="statement-right-col">
           <div className="statement-col-label">DRAW DEFICIT BREAKDOWN</div>
           <DrawDeficitsExcelStatement
@@ -1025,9 +1008,8 @@ function SupervisorStatementTable({
           />
         </div>
 
-      </div>{/* end .statement-two-col-body */}
+      </div>
 
-      {/* ── FULL-WIDTH FOOTER ─────────────────────────────────────── */}
       <div className="statement-signatures-section">
         <div className="statement-sig-column">
           <div className="statement-sig-line" />
@@ -1206,7 +1188,6 @@ function SupervisorStatementModal({
     </CustomPrintBrowserModal>
   )
 }
-
 
 function OverviewDashboard({
   overallDraws = [],
@@ -1442,7 +1423,6 @@ function OverviewDashboard({
 
               return (
                 <div key={row.id || idx} className={`draw-result-card ${meta.isLocal ? 'card-local' : 'card-pcso'}`}>
-                  {/* Card Header */}
                   <div className="draw-card-top-bar">
                     <div className="draw-card-time-wrap">
                       <span className="draw-clock-icon"><Icon name="clock" size={13} /></span>
@@ -1454,7 +1434,6 @@ function OverviewDashboard({
                     </span>
                   </div>
 
-                  {/* Winning Results Showcase */}
                   <div className="draw-card-results-showcase">
                     <div className="draw-hero-winner-box">
                       <div className="winner-label-row">
@@ -1485,7 +1464,6 @@ function OverviewDashboard({
                       </div>
                     </div>
 
-                    {/* Dedicated Side Games Tray for PCSO (2D & 4D) - clean, non-cramped */}
                     {hasSideGames ? (
                       <div className="draw-side-games-tray">
                         {row.l2_result && (
@@ -1514,7 +1492,6 @@ function OverviewDashboard({
                     )}
                   </div>
 
-                  {/* Financial & Audit Metrics */}
                   <div className="draw-card-financial-strip">
                     <div className="draw-stats-dual-row">
                       <div className="stat-pod">
@@ -2075,7 +2052,6 @@ function App() {
     localStorage.setItem('luckybet_user', JSON.stringify(restored))
   }
 
-  // Listen for real-time RBAC updates (both role-tier toggles and account-specific custom overrides)
   useEffect(() => {
     const handleRbacChange = () => {
       setRbacRoles(getRbacRoles())
@@ -2083,18 +2059,15 @@ function App() {
     }
     window.addEventListener('luckybet_rbac_change', handleRbacChange)
 
-    // 1. Initial sync of permissions and commission settings from Supabase Cloud
     if (isSupabaseConfigured) {
       syncMatrixPermissionsFromSupabase().catch(() => {})
       syncCommissionSettingsFromSupabase().catch(() => {})
     }
 
-    // 2. Real-time subscription to cloud matrix toggles (Supabase Realtime Channel & Postgres changes)
     const unsubRealtime = subscribeToMatrixRealtime(() => {
       syncMatrixPermissionsFromSupabase().catch(() => {})
     })
 
-    // 3. Sync whenever the tab/window gains focus or becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && isSupabaseConfigured) {
         syncMatrixPermissionsFromSupabase().catch(() => {})
@@ -2103,7 +2076,6 @@ function App() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // 4. Periodic polling safety check (every 30 seconds)
     const syncInterval = setInterval(() => {
       if (isSupabaseConfigured) {
         syncMatrixPermissionsFromSupabase().catch(() => {})
@@ -2119,7 +2091,6 @@ function App() {
     }
   }, [])
 
-  // Calculate dynamic effective capabilities for currentUser depending on account and matrix toggles
   const userPermissions = useMemo(() => {
     if (!currentUser) return []
     return getUserEffectivePermissions(currentUser, rbacRoles)
@@ -2132,7 +2103,6 @@ function App() {
     [currentUser, rbacRoles, rbacRev]
   )
 
-  // Automatically snap to first permitted tab if activeView is not permitted
   useEffect(() => {
     if (!currentUser) return
     const isAllowed = (view) => {

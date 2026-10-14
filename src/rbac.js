@@ -1,4 +1,3 @@
-// src/rbac.js - Role-Based Access Control (RBAC) & Credential Store for Imperial Gaming OPC
 import { saveSupabaseMatrixConfig } from './supabase.js'
 
 const USERS_STORAGE_KEY = 'luckybet_rbac_users'
@@ -6,9 +5,6 @@ const ROLES_STORAGE_KEY = 'luckybet_rbac_roles'
 const AUDIT_STORAGE_KEY = 'luckybet_rbac_audit_logs'
 
 export const PERMISSIONS = [
-  // ---------------------------------------------------------------------------
-  // 1. WORKSPACE TABS (Sidebar Navigation Menus)
-  // ---------------------------------------------------------------------------
   {
     key: 'view_overview',
     label: 'Consolidated Overview & KPIs Tab',
@@ -55,9 +51,6 @@ export const PERMISSIONS = [
     description: 'Configure baseline agent commission rates per supervisor and individual teller overrides.',
   },
 
-  // ---------------------------------------------------------------------------
-  // 2. IN-TAB FEATURES (Operational Tools & Actions inside Workspaces)
-  // ---------------------------------------------------------------------------
   {
     key: 'print_statements',
     label: 'Print Remittance Statements',
@@ -258,9 +251,6 @@ export const DEFAULT_AUDIT_LOGS = [
   },
 ]
 
-// -----------------------------------------------------------------------------
-// Storage Accessors
-// -----------------------------------------------------------------------------
 const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
 
 export function getRbacRoles() {
@@ -280,7 +270,6 @@ export function saveRbacRoles(roles) {
     localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(roles))
     window.dispatchEvent(new CustomEvent('luckybet_rbac_change', { detail: { roles } }))
 
-    // Asynchronously synchronize online to Supabase Cloud Matrix
     saveSupabaseMatrixConfig({
       roles,
       userPerms: getUserCustomPermissionsMap(),
@@ -309,7 +298,6 @@ export function saveUserCustomPermissionsMap(map) {
     localStorage.setItem(USER_PERMS_KEY, JSON.stringify(map))
     window.dispatchEvent(new CustomEvent('luckybet_rbac_change', { detail: { userPerms: map } }))
 
-    // Asynchronously synchronize online to Supabase Cloud Matrix
     saveSupabaseMatrixConfig({
       roles: getRbacRoles(),
       userPerms: map,
@@ -415,7 +403,6 @@ export function getRbacUsers() {
     console.warn('Failed to parse users from localStorage:', err)
   }
 
-  // Initialize default users if not set, omitting any deleted ones
   const initial = DEFAULT_USERS.filter((u) => !deleted.includes(u.username.toLowerCase()))
   try {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial))
@@ -464,9 +451,6 @@ export function addAuditLog(action, details, actor = 'current_user', severity = 
   }
 }
 
-// -----------------------------------------------------------------------------
-// Authentication & RBAC Verification (Strict Directory Matching)
-// -----------------------------------------------------------------------------
 export function verifyUserCredentials(username, password) {
   const users = getRbacUsers()
   const cleanUser = String(username || '').trim().toLowerCase()
@@ -477,7 +461,6 @@ export function verifyUserCredentials(username, password) {
     return null
   }
 
-  // Check if account exists but is deactivated
   const userRecord = users.find((u) => u.username.toLowerCase() === cleanUser)
   if (userRecord && (userRecord.status === 'suspended' || userRecord.status === 'inactive')) {
     if (userRecord.password === cleanPass) {
@@ -485,7 +468,6 @@ export function verifyUserCredentials(username, password) {
     }
   }
 
-  // Strict check: Account MUST exist in directory, be active, and password MUST match exactly
   const match = users.find(
     (u) =>
       u.status === 'active' &&
@@ -559,19 +541,15 @@ export function areFeatureParentTabsDisabled(permKey, activePermissions = []) {
   if (meta.type !== 'feature') return false
   const parentTabs = meta.parentTabs || []
   if (parentTabs.length === 0) return false
-  // Feature can only be functional if at least one of its parent tabs is active
   const hasActiveParent = parentTabs.some((tabKey) => activePermissions.includes(tabKey))
   return !hasActiveParent
 }
 
 export function getAffectedFeaturesWhenTabDisabled(tabKey, currentPerms = []) {
-  // If tabKey is removed, find all features that lose their last remaining parent tab
   const remainingWithoutTab = currentPerms.filter((k) => k !== tabKey)
   return PERMISSIONS.filter((p) => {
     if (p.type !== 'feature' || !p.parentTabs?.includes(tabKey)) return false
-    // Only care if the feature is currently granted
     if (!currentPerms.includes(p.key)) return false
-    // Check if any other parent tab remains active
     const hasRemainingParent = p.parentTabs.some((pt) => remainingWithoutTab.includes(pt))
     return !hasRemainingParent
   })
@@ -582,7 +560,6 @@ export function hasPermission(currentUser, permKey, roles = null) {
   const perms = getUserEffectivePermissions(currentUser, roles)
   if (!perms.includes(permKey)) return false
 
-  // Strict check: if it is an in-tab feature, at least one of its parent tabs MUST be active
   const meta = getPermissionMeta(permKey)
   if (meta.type === 'feature' && meta.parentTabs?.length > 0) {
     const hasParentTab = meta.parentTabs.some((tabKey) => perms.includes(tabKey))

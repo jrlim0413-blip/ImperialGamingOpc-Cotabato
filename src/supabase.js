@@ -1,4 +1,3 @@
-// src/supabase.js - Dedicated Supabase Client & Database Table Layer
 import { createClient } from '@supabase/supabase-js'
 
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}
@@ -26,24 +25,12 @@ export const supabase = isSupabaseConfigured
 
 export const RBAC_TABLE_NAME = 'rbac_users'
 
-/**
- * Normalize an identifier to an email address format suitable for Supabase Auth.
- */
 export function formatSupabaseEmail(identifier) {
   const clean = String(identifier || '').trim().toLowerCase()
   if (clean.includes('@')) return clean
   return `${clean}@luckybetplay.ph`
 }
 
-// =============================================================================
-// DEDICATED TABLE AUTHENTICATION & RBAC DIRECTORY
-// =============================================================================
-
-/**
- * Verify username and password strictly against the Supabase 'rbac_users' table.
- * If user is not found in the table, or password doesn't match, or is suspended,
- * access is explicitly denied.
- */
 export async function verifyCredentialsInSupabaseTable(username, password) {
   if (!supabase) {
     return { success: false, error: 'Supabase client is not configured' }
@@ -67,7 +54,6 @@ export async function verifyCredentialsInSupabaseTable(username, password) {
       .ilike('username', cleanUser)
       .limit(1)
 
-    // Table has not been created yet in PostgreSQL
     if (error) {
       const isMissingTable =
         error.code === 'PGRST205' ||
@@ -80,7 +66,6 @@ export async function verifyCredentialsInSupabaseTable(username, password) {
       }
     }
 
-    // Account not found in directory
     if (!data || data.length === 0) {
       return {
         success: false,
@@ -91,7 +76,6 @@ export async function verifyCredentialsInSupabaseTable(username, password) {
 
     const account = data[0]
 
-    // Account status check
     if (account.status === 'suspended' || account.status === 'inactive' || account.status === 'system') {
       return {
         success: false,
@@ -100,7 +84,6 @@ export async function verifyCredentialsInSupabaseTable(username, password) {
       }
     }
 
-    // Strict Password Verification
     if (account.password !== cleanPass) {
       return {
         success: false,
@@ -109,7 +92,6 @@ export async function verifyCredentialsInSupabaseTable(username, password) {
       }
     }
 
-    // Update last_login timestamp asynchronously
     supabase
       .from(RBAC_TABLE_NAME)
       .update({ last_login: new Date().toISOString() })
@@ -146,14 +128,9 @@ export const MATRIX_REALTIME_CHANNEL = 'rbac-matrix-realtime'
 
 let realtimeChannelInstance = null
 
-/**
- * Fetch matrix configuration (role permissions and user custom permissions) from Supabase.
- * Checks dedicated 'rbac_matrix_config' table first; falls back to system row in 'rbac_users'.
- */
 export async function getSupabaseMatrixConfig() {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
-    // 1. Try dedicated table first
     const { data: tableData, error: tableErr } = await supabase
       .from('rbac_matrix_config')
       .select('config')
@@ -164,7 +141,6 @@ export async function getSupabaseMatrixConfig() {
       return { success: true, config: tableData.config, source: 'rbac_matrix_config' }
     }
 
-    // 2. Fallback to protected system row in rbac_users
     const { data: userData, error: userErr } = await supabase
       .from(RBAC_TABLE_NAME)
       .select('email')
@@ -186,10 +162,6 @@ export async function getSupabaseMatrixConfig() {
   }
 }
 
-/**
- * Save matrix configuration (roles permissions + user custom permissions) to Supabase.
- * Saves to both dedicated table (if present) and fallback system row in rbac_users.
- */
 export async function saveSupabaseMatrixConfig(config) {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
@@ -200,7 +172,6 @@ export async function saveSupabaseMatrixConfig(config) {
 
     let savedToTable = false
 
-    // 1. Attempt save to dedicated table
     try {
       const { error: tableErr } = await supabase
         .from('rbac_matrix_config')
@@ -214,7 +185,6 @@ export async function saveSupabaseMatrixConfig(config) {
       }
     } catch { }
 
-    // 2. Only fallback to system row in rbac_users if dedicated table is not present
     let userErr = null
     if (!savedToTable) {
       const sysRow = {
@@ -236,7 +206,6 @@ export async function saveSupabaseMatrixConfig(config) {
       userErr = res.error
     }
 
-    // 3. Broadcast real-time change to all connected clients
     try {
       if (realtimeChannelInstance) {
         realtimeChannelInstance.send({
@@ -257,9 +226,6 @@ export async function saveSupabaseMatrixConfig(config) {
   }
 }
 
-/**
- * Synchronize cloud matrix permissions from Supabase into local storage and trigger UI re-render.
- */
 export async function syncMatrixPermissionsFromSupabase() {
   if (!isSupabaseConfigured) return { success: false, error: 'Supabase not configured' }
   try {
@@ -306,13 +272,9 @@ export async function syncMatrixPermissionsFromSupabase() {
 export const COMMISSIONS_CONFIG_ID = 'commissions_config'
 export const COMMISSIONS_CONFIG_SYS_ID = '__sys_commissions_config__'
 
-/**
- * Fetch hierarchical commission settings (supervisor default rates and individual agent overrides) from Supabase.
- */
 export async function getSupabaseCommissionSettings() {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
-    // 1. Try dedicated table first
     const { data: tableData, error: tableErr } = await supabase
       .from('rbac_matrix_config')
       .select('config')
@@ -323,7 +285,6 @@ export async function getSupabaseCommissionSettings() {
       return { success: true, settings: tableData.config, source: 'rbac_matrix_config' }
     }
 
-    // 2. Fallback to system row in rbac_users
     const { data: userData, error: userErr } = await supabase
       .from(RBAC_TABLE_NAME)
       .select('email')
@@ -345,9 +306,6 @@ export async function getSupabaseCommissionSettings() {
   }
 }
 
-/**
- * Save hierarchical commission settings to Supabase.
- */
 export async function saveSupabaseCommissionSettings(settings) {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
@@ -359,7 +317,6 @@ export async function saveSupabaseCommissionSettings(settings) {
 
     let savedToTable = false
 
-    // 1. Attempt save to dedicated table
     try {
       const { error: tableErr } = await supabase
         .from('rbac_matrix_config')
@@ -371,7 +328,6 @@ export async function saveSupabaseCommissionSettings(settings) {
       if (!tableErr) savedToTable = true
     } catch { }
 
-    // 2. Only fallback to system row in rbac_users if dedicated table is not present
     let userErr = null
     if (!savedToTable) {
       const sysRow = {
@@ -393,7 +349,6 @@ export async function saveSupabaseCommissionSettings(settings) {
       userErr = res.error
     }
 
-    // 3. Broadcast real-time change to all connected clients
     try {
       if (realtimeChannelInstance) {
         realtimeChannelInstance.send({
@@ -414,9 +369,6 @@ export async function saveSupabaseCommissionSettings(settings) {
   }
 }
 
-/**
- * Synchronize cloud commission settings from Supabase into local storage and trigger UI re-render.
- */
 export async function syncCommissionSettingsFromSupabase() {
   if (!isSupabaseConfigured) return { success: false, error: 'Supabase not configured' }
   try {
@@ -450,9 +402,6 @@ export async function syncCommissionSettingsFromSupabase() {
   }
 }
 
-/**
- * Subscribe to real-time matrix & commission changes across all browsers and devices.
- */
 export function subscribeToMatrixRealtime(onUpdate) {
   if (!supabase) return () => { }
 
@@ -514,9 +463,6 @@ export function subscribeToMatrixRealtime(onUpdate) {
   }
 }
 
-/**
- * Fetch all authorized accounts from Supabase 'rbac_users' table.
- */
 export async function getSupabaseRbacUsers() {
   if (!supabase) return { success: false, data: [] }
   try {
@@ -534,7 +480,6 @@ export async function getSupabaseRbacUsers() {
       }
     }
 
-    // Exclude protected system configuration rows
     const normalized = (data || [])
       .filter(
         (row) =>
@@ -563,9 +508,6 @@ export async function getSupabaseRbacUsers() {
   }
 }
 
-/**
- * Insert or update an account in Supabase 'rbac_users' table.
- */
 export async function saveRbacUserToSupabase(user) {
   if (!supabase) return { success: false, error: 'Supabase is not configured' }
   try {
@@ -596,9 +538,6 @@ export async function saveRbacUserToSupabase(user) {
   }
 }
 
-/**
- * Delete an account from Supabase 'rbac_users' table.
- */
 export async function deleteRbacUserFromSupabase(id, username) {
   if (!supabase) return { success: false, error: 'Supabase is not configured' }
   try {
@@ -633,9 +572,6 @@ export async function deleteRbacUserFromSupabase(id, username) {
   }
 }
 
-/**
- * Seed initial default users into the table if empty.
- */
 export async function seedDefaultUsersToSupabase(defaultUsers) {
   if (!supabase || !Array.isArray(defaultUsers) || defaultUsers.length === 0) return
   try {
@@ -655,10 +591,6 @@ export async function seedDefaultUsersToSupabase(defaultUsers) {
     await supabase.from(RBAC_TABLE_NAME).upsert(rows, { onConflict: 'username' })
   } catch { }
 }
-
-// =============================================================================
-// SUPABASE AUTH (OAuth / Email fallback)
-// =============================================================================
 
 export async function signInWithSupabase(identifier, password) {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
@@ -714,9 +646,6 @@ export async function getSupabaseSession() {
 
 export const PAYOUT_SHORTAGE_TABLE_NAME = 'payout_shortage_replenishments'
 
-/**
- * Fetch Payout Shortage Replenishments from Supabase database by branch and date.
- */
 export async function getPayoutShortagesFromSupabase(branch, claimDate) {
   if (!supabase) return { success: false, data: [] }
   try {
@@ -759,9 +688,6 @@ export async function getPayoutShortagesFromSupabase(branch, claimDate) {
   }
 }
 
-/**
- * Save / sync Payout Shortage Replenishments to Supabase database for a specific branch and date.
- */
 export async function savePayoutShortagesToSupabase(branch, claimDate, claimsArray) {
   if (!supabase) return { success: false, error: 'Supabase client is not configured' }
   try {
@@ -811,9 +737,6 @@ export async function savePayoutShortagesToSupabase(branch, claimDate, claimsArr
   }
 }
 
-/**
- * Delete a specific Payout Shortage Replenishment record from Supabase by ID.
- */
 export async function deletePayoutShortageRowFromSupabase(id) {
   if (!supabase || !id) return { success: false, error: 'Supabase client is not configured' }
   try {
@@ -834,7 +757,6 @@ export async function deletePayoutShortageRowFromSupabase(id) {
   }
 }
 
-// Backwards compatibility exports
 export const getCashierClaimsFromSupabase = getPayoutShortagesFromSupabase
 export const saveCashierClaimsToSupabase = savePayoutShortagesToSupabase
 export const deleteCashierClaimFromSupabase = deletePayoutShortageRowFromSupabase
