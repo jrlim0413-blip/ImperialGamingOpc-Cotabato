@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { verifyUserCredentials, getDeletedUsernames, getUserEffectivePermissions } from './rbac'
 import {
   isSupabaseConfigured,
+  createCloudSession,
   verifyCredentialsInSupabaseTable,
   syncMatrixPermissionsFromSupabase,
   signInWithSupabase,
