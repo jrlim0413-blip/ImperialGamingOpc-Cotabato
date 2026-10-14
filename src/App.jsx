@@ -2059,17 +2059,9 @@ function App() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    const syncInterval = setInterval(() => {
-      if (isSupabaseConfigured) {
-        syncMatrixPermissionsFromSupabase().catch(() => {})
-        syncCommissionSettingsFromSupabase().catch(() => {})
-      }
-    }, 30000)
-
     return () => {
       window.removeEventListener('luckybet_rbac_change', handleRbacChange)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      clearInterval(syncInterval)
       if (typeof unsubRealtime === 'function') unsubRealtime()
     }
   }, [])
