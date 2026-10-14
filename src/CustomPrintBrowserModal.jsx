@@ -72,10 +72,6 @@ let inMemoryPrintSettings = {
 }
 
 export function getSavedPrintSettings() {
-  try {
-    const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_custom_print_browser_settings') : null
-    if (saved) return JSON.parse(saved)
-  } catch (e) {}
   return { ...inMemoryPrintSettings }
 }
 
@@ -102,11 +98,6 @@ export function CustomPrintBrowserModal({
 
   useEffect(() => {
     inMemoryPrintSettings = { ...settings }
-    try {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('luckybet_custom_print_browser_settings', JSON.stringify(settings))
-      }
-    } catch (e) {}
   }, [settings])
 
   const currentPaper = useMemo(() => {

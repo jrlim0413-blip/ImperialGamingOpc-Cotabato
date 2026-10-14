@@ -12,6 +12,10 @@ import './CustomPrintBrowserModal.css'
 import { loadCommissionSettings, getAgentCommissionRate } from './commissions'
 import {
   signOutFromSupabase,
+  getCloudSession,
+  createCloudSession,
+  updateCloudSession,
+  revokeCloudSession,
   syncMatrixPermissionsFromSupabase,
   syncCommissionSettingsFromSupabase,
   subscribeToMatrixRealtime,
@@ -1949,21 +1953,7 @@ function App() {
   const [reportViewMode, setReportViewMode] = useState('matrix')
   const [statementModalGroup, setStatementModalGroup] = useState(null)
   const [isDeficitModalOpen, setIsDeficitModalOpen] = useState(false)
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_user') : null
-      if (!saved) return null
-      const parsed = JSON.parse(saved)
-      if (parsed) {
-        if (parsed.branch) parsed.branch = parsed.branch.replace(/Mandaue/gi, 'LDN')
-        if (parsed.username) parsed.username = parsed.username.replace(/^mandaue\.staff$/i, 'ldn.staff').replace(/^teller\.mandaue$/i, 'teller.ldn')
-        sessionStorage.setItem('luckybet_user', JSON.stringify(parsed))
-      }
-      return parsed
-    } catch {
-      return null
-    }
-  })
+  const [currentUser, setCurrentUser] = useState(null)
   const [rbacRoles, setRbacRoles] = useState(() => getRbacRoles())
   const [rbacRev, setRbacRev] = useState(0)
   const [commissionSettings, setCommissionSettings] = useState(() => loadCommissionSettings())
@@ -1978,24 +1968,16 @@ function App() {
   }, [])
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    try {
-      const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_theme') : null
-      if (saved) return saved === 'dark'
+    if (typeof window !== 'undefined') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches
-    } catch {
-      return false
     }
+    return false
   })
 
   useEffect(() => {
     const themeVal = isDarkMode ? 'dark' : 'light'
     document.documentElement.setAttribute('data-theme', themeVal)
     document.body.setAttribute('data-theme', themeVal)
-    try {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('luckybet_theme', themeVal)
-      }
-    } catch {}
   }, [isDarkMode])
 
   const handleSwitchUser = (targetUser) => {
@@ -2016,9 +1998,7 @@ function App() {
       simulatedFromAdmin: !isTargetAdmin,
     }
     setCurrentUser(newUser)
-    try {
-      sessionStorage.setItem('luckybet_user', JSON.stringify(newUser))
-    } catch {}
+    updateCloudSession(newUser.token, newUser).catch(() => {})
   }
 
   const handleReturnToAdmin = () => {
@@ -2039,9 +2019,7 @@ function App() {
       simulatedFromAdmin: false,
     }
     setCurrentUser(restored)
-    try {
-      sessionStorage.setItem('luckybet_user', JSON.stringify(restored))
-    } catch {}
+    updateCloudSession(restored.token, restored).catch(() => {})
   }
 
   useEffect(() => {
@@ -2116,11 +2094,8 @@ function App() {
   }, [activeView, can, currentUser])
 
   const handleLogout = () => {
+    revokeCloudSession(currentUser?.token).catch(() => {})
     signOutFromSupabase().catch(() => {})
-    try {
-      sessionStorage.removeItem('luckybet_user')
-      sessionStorage.removeItem('luckybet_token')
-    } catch {}
     setCurrentUser(null)
   }
 
@@ -2749,9 +2724,7 @@ function App() {
                     simulatedFromAdmin: !isTargetAdmin,
                   }
                   setCurrentUser(updatedUser)
-                  try {
-                    sessionStorage.setItem('luckybet_user', JSON.stringify(updatedUser))
-                  } catch {}
+                  updateCloudSession(updatedUser.token, updatedUser).catch(() => {})
                 }}
                 branchName={branchName}
                 initialTab={activeView === 'activity' ? 'logs' : 'users'}

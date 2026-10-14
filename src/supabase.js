@@ -18,7 +18,7 @@ if (!isSupabaseConfigured && typeof window !== 'undefined') {
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: true,
+      persistSession: false,
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
@@ -777,3 +777,140 @@ export async function deletePayoutShortageRowFromSupabase(id) {
 export const getCashierClaimsFromSupabase = getPayoutShortagesFromSupabase
 export const saveCashierClaimsToSupabase = savePayoutShortagesToSupabase
 export const deleteCashierClaimFromSupabase = deletePayoutShortageRowFromSupabase
+
+
+export const ACTIVE_SESSIONS_CONFIG_ID = 'active_sessions'
+
+export function getSessionTokenFromUrl() {
+  if (typeof window === 'undefined') return null
+  const hash = window.location.hash || ''
+  const match = hash.match(/session=([^&]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+export function setSessionTokenInUrl(token) {
+  if (typeof window === 'undefined') return
+  if (token) {
+    window.location.hash = `session=${encodeURIComponent(token)}`
+  } else {
+    if (window.location.hash.includes('session=')) {
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }
+}
+
+export async function createCloudSession(user) {
+  const token = 'ses_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)
+  const sessionUser = {
+    ...user,
+    token,
+    lastActive: new Date().toISOString(),
+  }
+
+  setSessionTokenInUrl(token)
+
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('rbac_matrix_config')
+        .select('config')
+        .eq('id', ACTIVE_SESSIONS_CONFIG_ID)
+        .maybeSingle()
+
+      const currentSessions = (data?.config && typeof data.config === 'object') ? data.config : {}
+      currentSessions[token] = sessionUser
+
+      await supabase
+        .from('rbac_matrix_config')
+        .upsert({
+          id: ACTIVE_SESSIONS_CONFIG_ID,
+          config: currentSessions,
+          updated_at: new Date().toISOString(),
+        })
+    } catch (err) {
+      console.warn('Failed to persist cloud session to Supabase:', err)
+    }
+  }
+
+  return sessionUser
+}
+
+export async function getCloudSession() {
+  const token = getSessionTokenFromUrl()
+  if (!token) return null
+  if (!supabase) return null
+
+  try {
+    const { data, error } = await supabase
+      .from('rbac_matrix_config')
+      .select('config')
+      .eq('id', ACTIVE_SESSIONS_CONFIG_ID)
+      .maybeSingle()
+
+    if (!error && data?.config && data.config[token]) {
+      return data.config[token]
+    }
+  } catch (err) {
+    console.warn('Failed to retrieve cloud session:', err)
+  }
+
+  setSessionTokenInUrl(null)
+  return null
+}
+
+export async function updateCloudSession(token, updatedUser) {
+  if (!token || !supabase) return
+  try {
+    const { data } = await supabase
+      .from('rbac_matrix_config')
+      .select('config')
+      .eq('id', ACTIVE_SESSIONS_CONFIG_ID)
+      .maybeSingle()
+
+    const currentSessions = (data?.config && typeof data.config === 'object') ? data.config : {}
+    currentSessions[token] = {
+      ...currentSessions[token],
+      ...updatedUser,
+      token,
+      lastActive: new Date().toISOString(),
+    }
+
+    await supabase
+      .from('rbac_matrix_config')
+      .upsert({
+        id: ACTIVE_SESSIONS_CONFIG_ID,
+        config: currentSessions,
+        updated_at: new Date().toISOString(),
+      })
+  } catch (err) {
+    console.warn('Failed to update cloud session:', err)
+  }
+}
+
+export async function revokeCloudSession(token) {
+  const targetToken = token || getSessionTokenFromUrl()
+  setSessionTokenInUrl(null)
+
+  if (targetToken && supabase) {
+    try {
+      const { data } = await supabase
+        .from('rbac_matrix_config')
+        .select('config')
+        .eq('id', ACTIVE_SESSIONS_CONFIG_ID)
+        .maybeSingle()
+
+      if (data?.config && data.config[targetToken]) {
+        const nextSessions = { ...data.config }
+        delete nextSessions[targetToken]
+
+        await supabase
+          .from('rbac_matrix_config')
+          .upsert({
+            id: ACTIVE_SESSIONS_CONFIG_ID,
+            config: nextSessions,
+            updated_at: new Date().toISOString(),
+          })
+      }
+    } catch {}
+  }
+}

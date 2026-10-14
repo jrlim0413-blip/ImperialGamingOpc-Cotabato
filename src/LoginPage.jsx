@@ -324,12 +324,7 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
       if (loginSuccess && authUser) {
         setLoginSuccessState(true)
 
-        try {
-          sessionStorage.setItem('luckybet_user', JSON.stringify(authUser))
-          if (authUser.token) {
-            sessionStorage.setItem('luckybet_token', authUser.token)
-          }
-        } catch {}
+        await createCloudSession(authUser)
 
         setTimeout(() => {
           if (typeof onLoginSuccess === 'function') {
