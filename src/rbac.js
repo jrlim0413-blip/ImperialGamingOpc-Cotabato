@@ -251,75 +251,76 @@ export const DEFAULT_AUDIT_LOGS = [
   },
 ]
 
-const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+let inMemoryRoles = DEFAULT_ROLES
+let inMemoryUserPerms = {}
+let inMemoryUsers = DEFAULT_USERS
+let inMemoryDeleted = new Set()
+let inMemoryAuditLogs = [...DEFAULT_AUDIT_LOGS]
+
+export function setInMemoryRoles(roles) {
+  if (roles && typeof roles === 'object') {
+    inMemoryRoles = roles
+  }
+}
+
+export function setInMemoryUserPerms(perms) {
+  if (perms && typeof perms === 'object') {
+    inMemoryUserPerms = perms
+  }
+}
+
+export function setInMemoryUsers(users) {
+  if (Array.isArray(users)) {
+    inMemoryUsers = users
+  }
+}
 
 export function getRbacRoles() {
-  if (!isBrowser) return DEFAULT_ROLES
-  try {
-    const raw = localStorage.getItem(ROLES_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch (err) {
-    console.warn('Failed to parse roles from localStorage:', err)
-  }
-  return DEFAULT_ROLES
+  return inMemoryRoles
 }
 
 export function saveRbacRoles(roles) {
-  if (!isBrowser) return
-  try {
-    localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(roles))
+  inMemoryRoles = roles
+  if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('luckybet_rbac_change', { detail: { roles } }))
-
-    saveSupabaseMatrixConfig({
-      roles,
-      userPerms: getUserCustomPermissionsMap(),
-    }).catch((err) => {
-      console.warn('Supabase cloud roles sync failed:', err)
-    })
-  } catch (err) {
-    console.error('Failed to save roles to localStorage:', err)
   }
+
+  saveSupabaseMatrixConfig({
+    roles,
+    userPerms: inMemoryUserPerms,
+  }).catch((err) => {
+    console.warn('Supabase cloud roles sync failed:', err)
+  })
 }
 
-const USER_PERMS_KEY = 'luckybet_rbac_user_perms'
-
 export function getUserCustomPermissionsMap() {
-  if (!isBrowser) return {}
-  try {
-    const raw = localStorage.getItem(USER_PERMS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return {}
+  return inMemoryUserPerms
 }
 
 export function saveUserCustomPermissionsMap(map) {
-  if (!isBrowser) return
-  try {
-    localStorage.setItem(USER_PERMS_KEY, JSON.stringify(map))
+  inMemoryUserPerms = map
+  if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('luckybet_rbac_change', { detail: { userPerms: map } }))
-
-    saveSupabaseMatrixConfig({
-      roles: getRbacRoles(),
-      userPerms: map,
-    }).catch((err) => {
-      console.warn('Supabase cloud user perms sync failed:', err)
-    })
-  } catch (err) {
-    console.error('Failed to save user custom permissions:', err)
   }
+
+  saveSupabaseMatrixConfig({
+    roles: inMemoryRoles,
+    userPerms: map,
+  }).catch((err) => {
+    console.warn('Supabase cloud user perms sync failed:', err)
+  })
 }
 
 export function getUserCustomPermissions(username) {
   if (!username) return null
-  const map = getUserCustomPermissionsMap()
   const clean = username.trim().toLowerCase()
-  return Array.isArray(map[clean]) ? map[clean] : null
+  return Array.isArray(inMemoryUserPerms[clean]) ? inMemoryUserPerms[clean] : null
 }
 
 export function setUserCustomPermissions(username, permissions) {
   if (!username) return
-  const map = getUserCustomPermissionsMap()
   const clean = username.trim().toLowerCase()
+  const map = { ...inMemoryUserPerms }
   if (permissions === null || permissions === undefined) {
     delete map[clean]
   } else {
@@ -332,35 +333,18 @@ export function clearUserCustomPermissions(username) {
   setUserCustomPermissions(username, null)
 }
 
-const DELETED_USERS_KEY = 'luckybet_rbac_deleted_users'
-
 export function getDeletedUsernames() {
-  if (!isBrowser) return []
-  try {
-    const raw = localStorage.getItem(DELETED_USERS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return []
+  return Array.from(inMemoryDeleted)
 }
 
 export function recordDeletedUsername(username) {
-  if (!isBrowser || !username) return
-  try {
-    const list = getDeletedUsernames()
-    const clean = username.trim().toLowerCase()
-    if (!list.includes(clean)) {
-      list.push(clean)
-      localStorage.setItem(DELETED_USERS_KEY, JSON.stringify(list))
-    }
-  } catch {}
+  if (!username) return
+  inMemoryDeleted.add(username.trim().toLowerCase())
 }
 
 export function unmarkDeletedUsername(username) {
-  if (!isBrowser || !username) return
-  try {
-    const list = getDeletedUsernames().filter((u) => u !== username.trim().toLowerCase())
-    localStorage.setItem(DELETED_USERS_KEY, JSON.stringify(list))
-  } catch {}
+  if (!username) return
+  inMemoryDeleted.delete(username.trim().toLowerCase())
 }
 
 export function sanitizeBranchString(str) {
@@ -369,86 +353,44 @@ export function sanitizeBranchString(str) {
 }
 
 export function getRbacUsers() {
-  if (!isBrowser) return DEFAULT_USERS
-  const deleted = getDeletedUsernames()
-
-  try {
-    const raw = localStorage.getItem(USERS_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        let changed = false
-        const sanitized = parsed.map((u) => {
-          const newBranch = sanitizeBranchString(u.branch)
-          const newEmail = u.email ? u.email.replace(/luckybetplay\.ph/gi, 'imperialgamingopc.ph').replace(/glowingfortune\.ph/gi, 'imperialgamingopc.ph') : u.email
-          const newUsername = u.username ? u.username.replace(/^mandaue\.staff$/i, 'ldn.staff').replace(/^teller\.mandaue$/i, 'teller.ldn') : u.username
-          if (newBranch !== u.branch || newEmail !== u.email || newUsername !== u.username) {
-            changed = true
-          }
-          return {
-            ...u,
-            username: newUsername,
-            branch: newBranch,
-            email: newEmail,
-          }
-        }).filter((u) => !deleted.includes(u.username.toLowerCase()))
-
-        if (changed) {
-          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(sanitized))
-        }
-        return sanitized
+  return inMemoryUsers
+    .map((u) => {
+      const newBranch = sanitizeBranchString(u.branch)
+      const newEmail = u.email ? u.email.replace(/luckybetplay\.ph/gi, 'imperialgamingopc.ph').replace(/glowingfortune\.ph/gi, 'imperialgamingopc.ph') : u.email
+      const newUsername = u.username ? u.username.replace(/^mandaue\.staff$/i, 'ldn.staff').replace(/^teller\.mandaue$/i, 'teller.ldn') : u.username
+      return {
+        ...u,
+        username: newUsername,
+        branch: newBranch,
+        email: newEmail,
       }
-    }
-  } catch (err) {
-    console.warn('Failed to parse users from localStorage:', err)
-  }
-
-  const initial = DEFAULT_USERS.filter((u) => !deleted.includes(u.username.toLowerCase()))
-  try {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial))
-  } catch {}
-  return initial
+    })
+    .filter((u) => !inMemoryDeleted.has(u.username.toLowerCase()))
 }
 
 export function saveRbacUsers(users) {
-  if (!isBrowser) return
-  try {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users))
-  } catch (err) {
-    console.error('Failed to save users to localStorage:', err)
+  if (Array.isArray(users)) {
+    inMemoryUsers = users
   }
 }
 
 export function getAuditLogs() {
-  try {
-    const raw = localStorage.getItem(AUDIT_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    }
-  } catch {}
-  return DEFAULT_AUDIT_LOGS
+  return inMemoryAuditLogs
 }
 
 export function addAuditLog(action, details, actor = 'current_user', severity = 'info') {
-  try {
-    const logs = getAuditLogs()
-    const now = new Date()
-    const timeStr = `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    const newEntry = {
-      id: `log_${Date.now()}`,
-      timestamp: timeStr,
-      action,
-      actor,
-      details,
-      severity,
-    }
-    const updated = [newEntry, ...logs].slice(0, 50)
-    localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updated))
-    return updated
-  } catch {
-    return []
+  const now = new Date()
+  const timeStr = `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  const newEntry = {
+    id: `log_${Date.now()}`,
+    timestamp: timeStr,
+    action,
+    actor,
+    details,
+    severity,
   }
+  inMemoryAuditLogs = [newEntry, ...inMemoryAuditLogs].slice(0, 50)
+  return inMemoryAuditLogs
 }
 
 export function verifyUserCredentials(username, password) {

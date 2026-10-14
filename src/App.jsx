@@ -1951,13 +1951,13 @@ function App() {
   const [isDeficitModalOpen, setIsDeficitModalOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('luckybet_user') || sessionStorage.getItem('luckybet_user')
+      const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_user') : null
       if (!saved) return null
       const parsed = JSON.parse(saved)
       if (parsed) {
         if (parsed.branch) parsed.branch = parsed.branch.replace(/Mandaue/gi, 'LDN')
         if (parsed.username) parsed.username = parsed.username.replace(/^mandaue\.staff$/i, 'ldn.staff').replace(/^teller\.mandaue$/i, 'teller.ldn')
-        localStorage.setItem('luckybet_user', JSON.stringify(parsed))
+        sessionStorage.setItem('luckybet_user', JSON.stringify(parsed))
       }
       return parsed
     } catch {
@@ -1969,22 +1969,6 @@ function App() {
   const [commissionSettings, setCommissionSettings] = useState(() => loadCommissionSettings())
 
   useEffect(() => {
-    try {
-      ['luckybet_user', 'luckybet_rbac_users'].forEach((key) => {
-        const val = localStorage.getItem(key)
-        if (val && /Mandaue/i.test(val)) {
-          const cleaned = val.replace(/Mandaue/gi, 'LDN')
-            .replace(/mandaue\.staff/gi, 'ldn.staff')
-            .replace(/teller\.mandaue/gi, 'teller.ldn')
-            .replace(/luckybetplay\.ph/gi, 'imperialgamingopc.ph')
-            .replace(/glowingfortune\.ph/gi, 'imperialgamingopc.ph')
-          localStorage.setItem(key, cleaned)
-        }
-      })
-    } catch (e) {
-      console.warn('Legacy localStorage migration notice:', e)
-    }
-
     const handleCommissionChange = (e) => {
       if (e?.detail) setCommissionSettings(e.detail)
       else setCommissionSettings(loadCommissionSettings())
@@ -1995,7 +1979,7 @@ function App() {
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
-      const saved = localStorage.getItem('luckybet_theme')
+      const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_theme') : null
       if (saved) return saved === 'dark'
       return window.matchMedia('(prefers-color-scheme: dark)').matches
     } catch {
@@ -2007,7 +1991,11 @@ function App() {
     const themeVal = isDarkMode ? 'dark' : 'light'
     document.documentElement.setAttribute('data-theme', themeVal)
     document.body.setAttribute('data-theme', themeVal)
-    localStorage.setItem('luckybet_theme', themeVal)
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('luckybet_theme', themeVal)
+      }
+    } catch {}
   }, [isDarkMode])
 
   const handleSwitchUser = (targetUser) => {
@@ -2028,7 +2016,9 @@ function App() {
       simulatedFromAdmin: !isTargetAdmin,
     }
     setCurrentUser(newUser)
-    localStorage.setItem('luckybet_user', JSON.stringify(newUser))
+    try {
+      sessionStorage.setItem('luckybet_user', JSON.stringify(newUser))
+    } catch {}
   }
 
   const handleReturnToAdmin = () => {
@@ -2049,7 +2039,9 @@ function App() {
       simulatedFromAdmin: false,
     }
     setCurrentUser(restored)
-    localStorage.setItem('luckybet_user', JSON.stringify(restored))
+    try {
+      sessionStorage.setItem('luckybet_user', JSON.stringify(restored))
+    } catch {}
   }
 
   useEffect(() => {
@@ -2125,9 +2117,10 @@ function App() {
 
   const handleLogout = () => {
     signOutFromSupabase().catch(() => {})
-    localStorage.removeItem('luckybet_user')
-    localStorage.removeItem('luckybet_token')
-    sessionStorage.removeItem('luckybet_user')
+    try {
+      sessionStorage.removeItem('luckybet_user')
+      sessionStorage.removeItem('luckybet_token')
+    } catch {}
     setCurrentUser(null)
   }
 
@@ -2756,7 +2749,9 @@ function App() {
                     simulatedFromAdmin: !isTargetAdmin,
                   }
                   setCurrentUser(updatedUser)
-                  localStorage.setItem('luckybet_user', JSON.stringify(updatedUser))
+                  try {
+                    sessionStorage.setItem('luckybet_user', JSON.stringify(updatedUser))
+                  } catch {}
                 }}
                 branchName={branchName}
                 initialTab={activeView === 'activity' ? 'logs' : 'users'}

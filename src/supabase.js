@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { setInMemoryRoles, setInMemoryUserPerms } from './rbac.js'
+import { setInMemoryCommissionSettings } from './commissions.js'
 
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}
 
@@ -235,24 +237,16 @@ export async function syncMatrixPermissionsFromSupabase() {
       let changed = false
 
       if (roles && typeof roles === 'object') {
-        const currentRolesRaw = localStorage.getItem('luckybet_rbac_roles')
-        const newRolesStr = JSON.stringify(roles)
-        if (currentRolesRaw !== newRolesStr) {
-          localStorage.setItem('luckybet_rbac_roles', newRolesStr)
-          changed = true
-        }
+        setInMemoryRoles(roles)
+        changed = true
       }
 
       if (userPerms && typeof userPerms === 'object') {
-        const currentUserPermsRaw = localStorage.getItem('luckybet_rbac_user_perms')
-        const newUserPermsStr = JSON.stringify(userPerms)
-        if (currentUserPermsRaw !== newUserPermsStr) {
-          localStorage.setItem('luckybet_rbac_user_perms', newUserPermsStr)
-          changed = true
-        }
+        setInMemoryUserPerms(userPerms)
+        changed = true
       }
 
-      if (changed) {
+      if (changed && typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('luckybet_rbac_change', {
             detail: { roles, userPerms, source: 'supabase_sync' },
@@ -374,17 +368,9 @@ export async function syncCommissionSettingsFromSupabase() {
   try {
     const res = await getSupabaseCommissionSettings()
     if (res.success && res.settings) {
-      const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-      let changed = false
+      setInMemoryCommissionSettings(res.settings)
 
-      if (isBrowser) {
-        const currentRaw = localStorage.getItem('luckybet_commission_settings')
-        const newStr = JSON.stringify(res.settings)
-        if (currentRaw !== newStr) {
-          localStorage.setItem('luckybet_commission_settings', newStr)
-          changed = true
-        }
-
+      if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('luckybet_commissions_updated', {
             detail: res.settings,
@@ -393,7 +379,7 @@ export async function syncCommissionSettingsFromSupabase() {
         )
       }
 
-      return { success: true, settings: res.settings, changed }
+      return { success: true, settings: res.settings, changed: true }
     }
     return { success: false, error: res.error }
   } catch (err) {
@@ -402,8 +388,12 @@ export async function syncCommissionSettingsFromSupabase() {
   }
 }
 
-export function subscribeToMatrixRealtime(onUpdate) {
-  if (!supabase) return () => { }
+const matrixListeners = new Set()
+let matrixChannel = null
+
+function ensureMatrixChannel() {
+  if (!supabase) return null
+  if (matrixChannel) return matrixChannel
 
   try {
     const channel = supabase.channel(MATRIX_REALTIME_CHANNEL)
@@ -411,7 +401,9 @@ export function subscribeToMatrixRealtime(onUpdate) {
 
     channel
       .on('broadcast', { event: 'matrix_updated' }, () => {
-        if (typeof onUpdate === 'function') onUpdate()
+        matrixListeners.forEach((fn) => {
+          try { fn() } catch { }
+        })
       })
       .on('broadcast', { event: 'commissions_updated' }, () => {
         syncCommissionSettingsFromSupabase().catch(() => { })
@@ -425,7 +417,9 @@ export function subscribeToMatrixRealtime(onUpdate) {
             payload?.old?.id === MATRIX_CONFIG_SYS_ID ||
             payload?.new?.username === MATRIX_CONFIG_SYS_ID
           ) {
-            if (typeof onUpdate === 'function') onUpdate()
+            matrixListeners.forEach((fn) => {
+              try { fn() } catch { }
+            })
           }
           if (
             payload?.new?.id === COMMISSIONS_CONFIG_SYS_ID ||
@@ -443,23 +437,46 @@ export function subscribeToMatrixRealtime(onUpdate) {
           if (payload?.new?.id === COMMISSIONS_CONFIG_ID || payload?.old?.id === COMMISSIONS_CONFIG_ID) {
             syncCommissionSettingsFromSupabase().catch(() => { })
           } else {
-            if (typeof onUpdate === 'function') onUpdate()
+            matrixListeners.forEach((fn) => {
+              try { fn() } catch { }
+            })
           }
         }
       )
-      .subscribe()
-
-    return () => {
-      try {
-        supabase.removeChannel(channel)
-        if (realtimeChannelInstance === channel) {
-          realtimeChannelInstance = null
+      .subscribe((status, err) => {
+        if (err) {
+          console.warn('Realtime channel subscription status:', status, err)
         }
-      } catch { }
-    }
+      })
+
+    matrixChannel = channel
+    return channel
   } catch (err) {
     console.warn('Realtime subscription setup error:', err)
-    return () => { }
+    return null
+  }
+}
+
+export function subscribeToMatrixRealtime(onUpdate) {
+  if (!supabase) return () => { }
+
+  if (typeof onUpdate === 'function') {
+    matrixListeners.add(onUpdate)
+  }
+
+  ensureMatrixChannel()
+
+  return () => {
+    if (typeof onUpdate === 'function') {
+      matrixListeners.delete(onUpdate)
+    }
+    if (matrixListeners.size === 0 && matrixChannel) {
+      try {
+        supabase.removeChannel(matrixChannel)
+      } catch { }
+      matrixChannel = null
+      realtimeChannelInstance = null
+    }
   }
 }
 

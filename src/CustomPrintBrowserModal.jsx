@@ -57,28 +57,26 @@ export const MARGIN_PRESETS = {
   zero:    { id: 'zero',    name: 'Zero Margins (0mm)', top: '0mm', right: '0mm', bottom: '0mm', left: '0mm', px: 0 },
 }
 
-const STORAGE_KEY = 'luckybet_custom_print_browser_settings'
+let inMemoryPrintSettings = {
+  paperFormat: 'a4',
+  orientation: 'portrait',
+  marginPreset: 'compact',
+  autoFitOnePage: true,
+  fontScale: 100,
+  colorMode: 'color',
+  showHeader: true,
+  showSignatures: true,
+  showFooterTag: true,
+  customWidthMm: 210,
+  customHeightMm: 297,
+}
 
 export function getSavedPrintSettings() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('luckybet_custom_print_browser_settings') : null
     if (saved) return JSON.parse(saved)
-  } catch (e) {
-    console.warn('Unable to read print settings:', e)
-  }
-  return {
-    paperFormat: 'a4',
-    orientation: 'portrait',
-    marginPreset: 'compact',
-    autoFitOnePage: true,
-    fontScale: 100,
-    colorMode: 'color',
-    showHeader: true,
-    showSignatures: true,
-    showFooterTag: true,
-    customWidthMm: 210,
-    customHeightMm: 297,
-  }
+  } catch (e) {}
+  return { ...inMemoryPrintSettings }
 }
 
 export function CustomPrintBrowserModal({
@@ -103,11 +101,12 @@ export function CustomPrintBrowserModal({
   const pageFrameRef = useRef(null)
 
   useEffect(() => {
+    inMemoryPrintSettings = { ...settings }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-    } catch (e) {
-      console.warn('Failed to save print settings:', e)
-    }
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('luckybet_custom_print_browser_settings', JSON.stringify(settings))
+      }
+    } catch (e) {}
   }, [settings])
 
   const currentPaper = useMemo(() => {

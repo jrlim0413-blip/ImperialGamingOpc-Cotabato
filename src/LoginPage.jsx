@@ -324,14 +324,12 @@ export default function LoginPage({ onLoginSuccess, branchName = 'LDN' }) {
       if (loginSuccess && authUser) {
         setLoginSuccessState(true)
 
-        if (rememberMe) {
-          localStorage.setItem('luckybet_user', JSON.stringify(authUser))
-          if (authUser.token) {
-            localStorage.setItem('luckybet_token', authUser.token)
-          }
-        } else {
+        try {
           sessionStorage.setItem('luckybet_user', JSON.stringify(authUser))
-        }
+          if (authUser.token) {
+            sessionStorage.setItem('luckybet_token', authUser.token)
+          }
+        } catch {}
 
         setTimeout(() => {
           if (typeof onLoginSuccess === 'function') {

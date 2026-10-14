@@ -1,26 +1,24 @@
 import { saveSupabaseCommissionSettings } from './supabase.js'
 
-const COMMISSIONS_STORAGE_KEY = 'luckybet_commission_settings'
-const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-
 export const DEFAULT_COMMISSION_CONFIG = {
   globalDefaultRate: 10.0,
   supervisors: {},
 }
 
+let inMemoryCommissionConfig = { ...DEFAULT_COMMISSION_CONFIG }
+
+export function setInMemoryCommissionSettings(settings) {
+  if (!settings || typeof settings !== 'object') return
+  inMemoryCommissionConfig = {
+    globalDefaultRate: Number(settings.globalDefaultRate) || 10.0,
+    supervisors: settings.supervisors && typeof settings.supervisors === 'object' ? settings.supervisors : {},
+  }
+}
+
 export function loadCommissionSettings() {
-  if (!isBrowser) return { ...DEFAULT_COMMISSION_CONFIG }
-  try {
-    const raw = localStorage.getItem(COMMISSIONS_STORAGE_KEY)
-    if (!raw) return { ...DEFAULT_COMMISSION_CONFIG }
-    const parsed = JSON.parse(raw)
-    return {
-      globalDefaultRate: Number(parsed.globalDefaultRate) || 10.0,
-      supervisors: parsed.supervisors && typeof parsed.supervisors === 'object' ? parsed.supervisors : {},
-    }
-  } catch (err) {
-    console.error('Failed to load commission settings:', err)
-    return { ...DEFAULT_COMMISSION_CONFIG }
+  return {
+    globalDefaultRate: Number(inMemoryCommissionConfig.globalDefaultRate) || 10.0,
+    supervisors: inMemoryCommissionConfig.supervisors ? { ...inMemoryCommissionConfig.supervisors } : {},
   }
 }
 
@@ -31,8 +29,12 @@ export function saveCommissionSettings(settings) {
       supervisors: settings.supervisors || {},
       updatedAt: new Date().toISOString(),
     }
-    if (isBrowser) {
-      localStorage.setItem(COMMISSIONS_STORAGE_KEY, JSON.stringify(payload))
+    inMemoryCommissionConfig = {
+      globalDefaultRate: payload.globalDefaultRate,
+      supervisors: payload.supervisors,
+    }
+
+    if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('luckybet_commissions_updated', { detail: payload }))
     }
 
